@@ -52,11 +52,24 @@ public class PreviewController {
         }
 
         String destination = HtmlUtils.htmlEscape(mapping.getOriginalUrl());
-        String body = "You’re about to be taken from the short link <code>/" + code + "</code> to:"
-                + "<div class=\"dest\">" + destination + "</div>";
+        String host = HtmlUtils.htmlEscape(hostOf(mapping.getOriginalUrl()));
+        String body = "The short link <code>/" + code + "</code> takes you to:"
+                + "<div class=\"host\">" + host + "</div>"
+                + "<div class=\"dest\">" + destination + "</div>"
+                + "<p class=\"note small\">Check the site above matches where you expect to go before continuing.</p>";
         return ResponseEntity.ok()
                 .contentType(MediaType.TEXT_HTML)
                 .body(page("Preview link", body, mapping.getOriginalUrl()));
+    }
+
+    /** The bare host of a destination URL (the key "where does this go?" signal). */
+    private static String hostOf(String url) {
+        try {
+            String host = java.net.URI.create(url).getHost();
+            return host != null ? host : url;
+        } catch (IllegalArgumentException e) {
+            return url;
+        }
     }
 
     /** Minimal self-contained page matching the dashboard's dark theme. */
@@ -84,8 +97,13 @@ public class PreviewController {
                     background:linear-gradient(135deg,#6d5efc,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
                   p{color:var(--muted);line-height:1.6}
                   code{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--accent2)}
+                  .host{margin:18px 0 6px;font-size:1.5rem;font-weight:700;word-break:break-all;
+                    font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text)}
                   .dest{word-break:break-all;background:#12161f;border:1px solid var(--border);border-radius:10px;
-                    padding:12px 14px;margin:16px 0 20px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text)}
+                    padding:12px 14px;margin:8px 0 12px;font-family:ui-monospace,Menlo,Consolas,monospace;
+                    font-size:.85rem;color:var(--muted)}
+                  .note{color:var(--muted);margin:0 0 18px}
+                  .small{font-size:.82rem}
                   .btn{display:inline-block;background:linear-gradient(135deg,#6d5efc,#22d3ee);color:#fff;text-decoration:none;
                     font-weight:600;padding:12px 24px;border-radius:10px}
                   .btn:hover{filter:brightness(1.08)}
