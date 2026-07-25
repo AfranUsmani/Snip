@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,7 +34,7 @@ class UrlServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UrlService(repository, clickAnalytics);
+        service = new UrlService(repository, clickAnalytics, new ShortCodeGenerator());
     }
 
     @Test
@@ -46,6 +47,32 @@ class UrlServiceTest {
 
         assertThat(result.getShortCode()).isEqualTo("1C");
         assertThat(result.getOriginalUrl()).isEqualTo("https://example.com");
+    }
+
+    @Test
+    void createGeneratesRandomShortCodeWhenNoAlias() {
+        when(repository.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UrlMapping result = service.create("https://example.com", null, null);
+
+        ArgumentCaptor<UrlMapping> captor = ArgumentCaptor.forClass(UrlMapping.class);
+        verify(repository).save(captor.capture());
+        String code = captor.getValue().getShortCode();
+        // Random, fixed-length Base62 — not derived from a sequential id.
+        assertThat(code).hasSize(ShortCodeGenerator.CODE_LENGTH).matches("[0-9A-Za-z]+");
+        assertThat(result.getShortCode()).isEqualTo(code);
+    }
+
+    @Test
+    void createRetriesShortCodeOnCollision() {
+        // First generated code is taken, the next is free.
+        when(repository.existsByShortCode(any())).thenReturn(true, false);
+        when(repository.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UrlMapping result = service.create("https://example.com", null, null);
+
+        assertThat(result.getShortCode()).hasSize(ShortCodeGenerator.CODE_LENGTH);
+        verify(repository, times(2)).existsByShortCode(any());
     }
 
     @Test

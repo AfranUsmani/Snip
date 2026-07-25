@@ -7,7 +7,7 @@
 
 A production-grade URL shortener REST API built with **Java 21 + Spring Boot 3**. It turns long URLs into compact short codes, resolves them with a **cache-aside** read path for low-latency redirects, and ships with **Prometheus metrics**, **OpenAPI docs**, containerization, and a CI pipeline.
 
-> Designed as a compact but realistic backend service — clean layering, deterministic short-code generation, caching, observability, and tests — the kind of concerns that show up in real systems, not a tutorial CRUD app.
+> Designed as a compact but realistic backend service — clean layering, unguessable short-code generation, caching, observability, and tests — the kind of concerns that show up in real systems, not a tutorial CRUD app.
 
 ---
 
@@ -67,7 +67,7 @@ The dashboard lives at [`/`](https://url-shortener-api-1716.onrender.com/); inte
 ## ✨ Features
 
 - **REST API** to create short links and fetch per-link hit statistics.
-- **Collision-free short codes** via Base62 encoding of the database id — no retry loops, no coordination.
+- **Random, unguessable short codes** — 7-char Base62 tokens from a `SecureRandom` source, so links can't be enumerated by walking sequential ids; a unique index plus a small retry guard handles the astronomically rare collision.
 - **Custom / vanity aliases** — bring your own code (`/launch-2026`); availability is checked up front (409 on clash) and backed by a unique index against races.
 - **Link expiration (TTL)** — optional expiry; expired links return **410 Gone** and stop redirecting.
 - **QR codes** — a per-link PNG endpoint (`/api/v1/urls/{code}/qr`), rendered server-side with ZXing.
@@ -166,19 +166,20 @@ curl -X POST http://localhost:8080/api/v1/urls \
 
 ```json
 {
-  "shortCode": "1",
-  "shortUrl": "http://localhost:8080/1",
+  "shortCode": "MuBz4F7",
+  "shortUrl": "http://localhost:8080/MuBz4F7",
   "originalUrl": "https://spring.io/projects/spring-boot",
   "hitCount": 0,
   "createdAt": "2026-07-22T10:15:30Z",
   "expiresAt": null,
   "expired": false,
-  "qrCodeUrl": "http://localhost:8080/api/v1/urls/1/qr"
+  "qrCodeUrl": "http://localhost:8080/api/v1/urls/MuBz4F7/qr"
 }
 ```
 
-> Short codes are the Base62 encoding of the row id, so they stay compact and grow
-> gracefully (`1`, `2`, … `10`, … `2Bi`) as more links are created.
+> Short codes are random 7-char Base62 tokens drawn from a `SecureRandom` source, so
+> they're compact yet unguessable — the sequence of created links can't be walked by
+> incrementing a number (`/1`, `/2`, `/3`, …).
 
 **With a custom alias and expiry** (both optional):
 
@@ -237,7 +238,7 @@ curl http://localhost:8080/api/v1/urls/spring/analytics                # JSON br
 mvn verify
 ```
 
-Runs the unit tests (`Base62Test`, `UserAgentsTest`, `UrlServiceTest`, `UrlMappingTest`) and
+Runs the unit tests (`ShortCodeGeneratorTest`, `UserAgentsTest`, `UrlServiceTest`, `UrlMappingTest`) and
 the full-context integration tests (`UrlControllerIT`) against H2 — covering create → redirect →
 stats, custom aliases (409), expiry (410), the QR endpoint, and async analytics.
 
@@ -248,7 +249,7 @@ stats, custom aliases (409), expiry (410), the QR endpoint, and async analytics.
 ```
 src/main/java/io/github/afranusmani/urlshortener
 ├── controller   # REST + redirect + QR/analytics endpoints
-├── service      # business logic: Base62, caching, QR (ZXing), async analytics, UA parsing
+├── service      # business logic: short-code generation, caching, QR (ZXing), async analytics, UA parsing
 ├── repository   # Spring Data JPA repositories (url mapping + click events)
 ├── model        # JPA entities (UrlMapping, ClickEvent)
 ├── dto          # request/response records (incl. AnalyticsResponse)

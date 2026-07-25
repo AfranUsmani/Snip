@@ -1,31 +1,34 @@
 package io.github.afranusmani.urlshortener.model;
 
-import io.github.afranusmani.urlshortener.service.Base62;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class UrlMappingTest {
 
     @Test
-    void assignsShortCodeDerivedFromId() {
+    void isNotExpiredWhenNoExpirySet() {
         UrlMapping mapping = new UrlMapping("https://example.com");
-        ReflectionTestUtils.setField(mapping, "id", 100L);
 
-        mapping.assignShortCode();
-
-        assertThat(mapping.getShortCode()).isEqualTo(Base62.encode(100L));
+        assertThat(mapping.isExpired()).isFalse();
     }
 
     @Test
-    void doesNotOverwriteAnExistingShortCode() {
-        UrlMapping mapping = new UrlMapping("https://example.com");
-        ReflectionTestUtils.setField(mapping, "id", 100L);
-        mapping.setShortCode("custom");
+    void isNotExpiredWhenExpiryIsInTheFuture() {
+        UrlMapping mapping = new UrlMapping(
+                "https://example.com", Instant.now().plus(1, ChronoUnit.HOURS));
 
-        mapping.assignShortCode();
+        assertThat(mapping.isExpired()).isFalse();
+    }
 
-        assertThat(mapping.getShortCode()).isEqualTo("custom");
+    @Test
+    void isExpiredWhenExpiryIsInThePast() {
+        UrlMapping mapping = new UrlMapping(
+                "https://example.com", Instant.now().minus(1, ChronoUnit.HOURS));
+
+        assertThat(mapping.isExpired()).isTrue();
     }
 }
