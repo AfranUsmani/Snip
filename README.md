@@ -209,9 +209,12 @@ curl http://localhost:8080/api/v1/urls/spring/analytics                # JSON br
 | Method | Path                              | Description                                        |
 | ------ | --------------------------------- | -------------------------------------------------- |
 | POST   | `/api/v1/urls`                    | Create a short link (optional `customAlias`, `expiresAt`) |
+| POST   | `/api/v1/urls/bulk`               | Shorten up to 50 URLs in one call (per-item success/error) |
 | GET    | `/api/v1/urls/{code}`             | Get link metadata + hit count                      |
+| PUT    | `/api/v1/urls/{code}`             | Edit a link's destination (and expiry); code stays the same |
 | GET    | `/api/v1/urls/{code}/qr`          | QR code PNG for the short link (`?size=` optional) |
 | GET    | `/api/v1/urls/{code}/analytics`   | Aggregated clicks by device / browser / referrer / day |
+| GET    | `/preview/{code}`                 | Safety preview page — shows the destination without redirecting or counting a click |
 | GET    | `/{code}`                         | Redirect (302), or 410 Gone if expired             |
 
 **Interactive docs:** `http://localhost:8080/swagger-ui.html`

@@ -1,9 +1,13 @@
 package io.github.afranusmani.urlshortener.controller;
 
 import io.github.afranusmani.urlshortener.dto.AnalyticsResponse;
+import io.github.afranusmani.urlshortener.dto.BulkCreateRequest;
+import io.github.afranusmani.urlshortener.dto.BulkCreateResponse;
 import io.github.afranusmani.urlshortener.dto.CreateUrlRequest;
+import io.github.afranusmani.urlshortener.dto.UpdateUrlRequest;
 import io.github.afranusmani.urlshortener.dto.UrlResponse;
 import io.github.afranusmani.urlshortener.model.UrlMapping;
+import io.github.afranusmani.urlshortener.service.CreateOutcome;
 import io.github.afranusmani.urlshortener.service.QrCodeService;
 import io.github.afranusmani.urlshortener.service.UrlService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +29,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -68,10 +74,33 @@ public class UrlController {
         return ResponseEntity.created(location).body(body);
     }
 
+    @PostMapping("/bulk")
+    @Operation(summary = "Shorten several URLs in one request (per-item success/error)")
+    public ResponseEntity<BulkCreateResponse> bulk(@Valid @RequestBody BulkCreateRequest request) {
+        String baseUrl = baseUrl();
+        List<CreateOutcome> outcomes = service.createBulk(request.urls());
+        List<BulkCreateResponse.Item> items = outcomes.stream()
+                .map(o -> o.error() == null
+                        ? BulkCreateResponse.Item.ok(o.requestedUrl(), o.mapping().getShortCode(),
+                                UrlResponse.from(o.mapping(), baseUrl).shortUrl())
+                        : BulkCreateResponse.Item.failed(o.requestedUrl(), o.error()))
+                .toList();
+        int created = (int) items.stream().filter(BulkCreateResponse.Item::success).count();
+        return ResponseEntity.ok(new BulkCreateResponse(created, items.size() - created, items));
+    }
+
     @GetMapping("/{shortCode}")
     @Operation(summary = "Fetch metadata and hit statistics for a short link")
     public ResponseEntity<UrlResponse> stats(@PathVariable String shortCode) {
         UrlMapping mapping = service.getMapping(shortCode);
+        return ResponseEntity.ok(UrlResponse.from(mapping, baseUrl()));
+    }
+
+    @PutMapping("/{shortCode}")
+    @Operation(summary = "Edit a short link's destination (and expiry); the code stays the same")
+    public ResponseEntity<UrlResponse> update(@PathVariable String shortCode,
+                                              @Valid @RequestBody UpdateUrlRequest request) {
+        UrlMapping mapping = service.update(shortCode, request.url(), request.expiresAt());
         return ResponseEntity.ok(UrlResponse.from(mapping, baseUrl()));
     }
 

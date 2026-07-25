@@ -93,6 +93,10 @@ public class UrlMapping {
         return originalUrl;
     }
 
+    public void setOriginalUrl(String originalUrl) {
+        this.originalUrl = originalUrl;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }

@@ -45,6 +45,7 @@
     const linksBody = $("links-body");
     const refreshBtn = $("refresh-btn");
     const clearBtn = $("clear-btn");
+    const bulkBtn = $("bulk-btn");
 
     const healthPill = $("health-pill");
     const healthText = $("health-text");
@@ -167,9 +168,10 @@
                     <td class="col-actions">
                         <div class="row-actions">
                             <button class="icon-btn" data-act="copy" title="Copy short link">⧉</button>
+                            <button class="icon-btn" data-act="preview" title="Preview destination (safe)">👁</button>
                             <button class="icon-btn" data-act="qr" title="Show QR code">▦</button>
                             <button class="icon-btn" data-act="analytics" title="Click analytics">📊</button>
-                            <button class="icon-btn" data-act="stats" title="Refresh clicks">↻</button>
+                            <button class="icon-btn" data-act="edit" title="Edit destination">✎</button>
                             <button class="icon-btn danger" data-act="remove" title="Remove from this list">✕</button>
                         </div>
                     </td>
@@ -363,6 +365,113 @@
         }
     }
 
+    // ---- edit (change destination) -------------------------------------------
+    /** Maps the edit modal's expiry choice to an ISO instant (or null to clear). */
+    function readEditExpiry(link, value) {
+        if (value === "keep") return (link.expiresAt && !isExpired(link)) ? link.expiresAt : null;
+        const ttl = parseInt(value, 10);
+        return ttl > 0 ? new Date(Date.now() + ttl * 1000).toISOString() : null;
+    }
+
+    function showEditModal(link) {
+        openModal(`
+            <p class="modal-title">Edit /${escapeHtml(link.shortCode)}</p>
+            <p class="modal-sub">Change where this link points — the code and QR stay the same.</p>
+            <form id="edit-form" class="modal-form">
+                <label for="edit-url">Destination URL</label>
+                <input id="edit-url" type="url" required value="${escapeHtml(link.originalUrl)}" />
+                <label for="edit-expiry">Expiry</label>
+                <select id="edit-expiry">
+                    <option value="keep">Keep current</option>
+                    <option value="0">Never (clear)</option>
+                    <option value="3600">In 1 hour</option>
+                    <option value="86400">In 1 day</option>
+                    <option value="604800">In 7 days</option>
+                    <option value="2592000">In 30 days</option>
+                </select>
+                <button type="submit" class="primary">Save changes</button>
+                <p id="edit-error" class="form-error" role="alert" hidden></p>
+            </form>`);
+
+        const editForm = $("edit-form");
+        editForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const url = $("edit-url").value.trim();
+            const btn = editForm.querySelector(".primary");
+            const err = $("edit-error");
+            err.hidden = true;
+            btn.disabled = true; btn.textContent = "Saving…";
+            try {
+                const body = { url, expiresAt: readEditExpiry(link, $("edit-expiry").value) };
+                const res = await fetch(`${API}/${encodeURIComponent(link.shortCode)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) {
+                    let msg = `Update failed (${res.status})`;
+                    try { const j = await res.json(); if (j.messages?.length) msg = j.messages.join("; "); } catch { /* */ }
+                    throw new Error(msg);
+                }
+                const data = await res.json();
+                upsertLink(data);
+                closeModal();
+                showToast("Destination updated");
+            } catch (ex) {
+                err.textContent = ex.message; err.hidden = false;
+                btn.disabled = false; btn.textContent = "Save changes";
+            }
+        });
+    }
+
+    // ---- bulk shorten ---------------------------------------------------------
+    function showBulkModal() {
+        openModal(`
+            <p class="modal-title">Bulk shorten</p>
+            <p class="modal-sub">Paste up to 50 URLs, one per line.</p>
+            <form id="bulk-form" class="modal-form">
+                <textarea id="bulk-input" placeholder="https://example.com/one&#10;https://example.com/two"></textarea>
+                <button type="submit" class="primary">Shorten all</button>
+            </form>
+            <div id="bulk-result" class="bulk-result"></div>`);
+
+        $("bulk-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const urls = $("bulk-input").value.split("\n").map((s) => s.trim()).filter(Boolean);
+            const out = $("bulk-result");
+            if (urls.length === 0) { out.innerHTML = `<span class="err">Add at least one URL.</span>`; return; }
+            if (urls.length > 50) { out.innerHTML = `<span class="err">Max 50 URLs per batch.</span>`; return; }
+
+            const btn = $("bulk-form").querySelector(".primary");
+            btn.disabled = true; btn.textContent = "Shortening…";
+            try {
+                const res = await fetch(`${API}/bulk`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ urls }),
+                });
+                if (!res.ok) throw new Error(`Request failed (${res.status})`);
+                const data = await res.json();
+                const now = new Date().toISOString();
+                data.results.filter((r) => r.success).forEach((r) => {
+                    upsertLink({
+                        shortCode: r.shortCode, shortUrl: r.shortUrl, originalUrl: r.url,
+                        hitCount: 0, createdAt: now, expiresAt: null,
+                    });
+                });
+                const fails = data.results.filter((r) => !r.success);
+                out.innerHTML = `<span class="ok">✓ Created ${data.created}</span>`
+                    + (data.failed ? ` · <span class="err">${data.failed} failed</span>` : "")
+                    + (fails.length ? `<ul>${fails.map((f) => `<li>${escapeHtml(f.url)} — ${escapeHtml(f.error)}</li>`).join("")}</ul>` : "");
+                showToast(`Created ${data.created} link(s)`);
+            } catch (ex) {
+                out.innerHTML = `<span class="err">${escapeHtml(ex.message)}</span>`;
+            } finally {
+                btn.disabled = false; btn.textContent = "Shorten all";
+            }
+        });
+    }
+
     // ---- health ---------------------------------------------------------------
     async function pollHealth() {
         try {
@@ -403,30 +512,24 @@
 
         if (act === "copy") {
             copyText(link.shortUrl);
+        } else if (act === "preview") {
+            window.open(`/preview/${encodeURIComponent(code)}`, "_blank", "noopener");
         } else if (act === "qr") {
             showQrModal(link);
         } else if (act === "analytics") {
             showAnalyticsModal(link);
+        } else if (act === "edit") {
+            showEditModal(link);
         } else if (act === "remove") {
             links = links.filter((l) => l.shortCode !== code);
             saveLinks(links);
             renderLinks();
             showToast("Removed from list");
-        } else if (act === "stats") {
-            btn.textContent = "…";
-            try {
-                const data = await refreshOne(code);
-                upsertLink(data);
-                flashBadges();
-                showToast(`/${code} · ${data.hitCount} click(s)`);
-            } catch {
-                showToast(`Couldn't refresh /${code}`);
-                btn.textContent = "↻";
-            }
         }
     });
 
     refreshBtn.addEventListener("click", refreshAll);
+    bulkBtn.addEventListener("click", showBulkModal);
     clearBtn.addEventListener("click", () => {
         if (links.length === 0) return;
         if (!confirm("Remove all links from this browser? (Server data is untouched.)")) return;
