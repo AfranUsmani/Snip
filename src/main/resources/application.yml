@@ -14,11 +14,25 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+    properties:
+      # Batch multi-row writes (e.g. the bulk endpoint) into fewer round-trips.
+      hibernate.jdbc.batch_size: 30
+      hibernate.order_inserts: true
+      hibernate.order_updates: true
   cache:
     type: simple
   h2:
     console:
       enabled: true
+  web:
+    resources:
+      cache:
+        # Let browsers reuse dashboard assets, with cheap 304 revalidation so a
+        # redeploy still serves fresh JS/CSS.
+        cachecontrol:
+          max-age: 600
+          cache-public: true
+        use-last-modified: true
 
 app:
   # Optional. Leave empty and the public host is derived from each request, so
@@ -33,6 +47,11 @@ server:
   # request-derived base URL reflects https://<public-host>, not the internal
   # http://<container>:<port>.
   forward-headers-strategy: framework
+  # Gzip text responses (HTML/CSS/JS + JSON API payloads) to cut transfer time.
+  compression:
+    enabled: true
+    mime-types: text/html,text/css,application/javascript,application/json,image/svg+xml
+    min-response-size: 1024
 
 management:
   endpoints:

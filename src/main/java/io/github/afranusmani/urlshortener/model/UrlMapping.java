@@ -28,7 +28,10 @@ public class UrlMapping {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "url_mapping_seq")
-    @SequenceGenerator(name = "url_mapping_seq", sequenceName = "url_mapping_seq", allocationSize = 1)
+    // allocationSize > 1 lets Hibernate hand out ids from an in-memory block, so
+    // inserts (especially the bulk endpoint) don't hit the sequence per row. Safe
+    // now that the id is purely internal — the public short code is random.
+    @SequenceGenerator(name = "url_mapping_seq", sequenceName = "url_mapping_seq", allocationSize = 50)
     private Long id;
 
     @Column(name = "short_code", nullable = false, unique = true, length = 64)

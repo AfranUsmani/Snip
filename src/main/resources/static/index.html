@@ -32,7 +32,8 @@
             <h1>Shorten a link. Watch the clicks roll in.</h1>
             <p class="lede">
                 Paste a long URL, add a custom alias or expiry if you like, and share it —
-                with a QR code and real-time click analytics baked in.
+                with a QR code and real-time click analytics baked in. Every link gets a
+                random, unguessable code, so nobody can walk your links by counting.
             </p>
 
             <form id="create-form" class="create-card" autocomplete="off">
@@ -96,6 +97,9 @@
                         <div class="result-dest">
                             <span class="muted">redirects to</span>
                             <span id="result-original"></span>
+                        </div>
+                        <div class="result-expiry muted small">
+                            <span class="secure-badge" title="Codes are random 7-char tokens from a secure RNG — not sequential ids">🔒 Secure, unguessable code</span>
                         </div>
                         <div id="result-expiry" class="result-expiry muted small" hidden></div>
                     </div>
