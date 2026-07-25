@@ -171,8 +171,10 @@ class UrlControllerIT {
     @Test
     void expiredLinkReturnsGone() {
         // Persist directly with a past expiry (the API rejects past expiry on create).
-        UrlMapping mapping = repository.save(
-                new UrlMapping("https://spring.io", Instant.now().minusSeconds(60)));
+        // Code generation lives in the service, so set one explicitly when bypassing it.
+        UrlMapping mapping = new UrlMapping("https://spring.io", Instant.now().minusSeconds(60));
+        mapping.setShortCode("expired");
+        mapping = repository.save(mapping);
 
         ResponseEntity<ApiError> response =
                 rest.getForEntity("/" + mapping.getShortCode(), ApiError.class);

@@ -12,7 +12,7 @@ import java.time.Instant;
  *
  * @param url         the original URL to shorten; must be a well-formed http(s) URL
  * @param customAlias optional vanity code (3–32 chars of letters, digits, {@code -} or {@code _});
- *                    when omitted, a collision-free Base62 code is generated
+ *                    when omitted, a random unguessable short code is generated
  * @param expiresAt   optional expiry instant; when set it must be in the future, and the link
  *                    returns HTTP 410 once it passes
  */

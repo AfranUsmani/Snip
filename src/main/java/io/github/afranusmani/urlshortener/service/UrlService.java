@@ -44,21 +44,33 @@ public class UrlService {
     private static final int BULK_LIMIT = 50;
     private static final String URL_PATTERN = "^https?://.+";
 
+    /**
+     * Retries when a randomly generated code collides with an existing one.
+     * Collisions are astronomically unlikely at the configured code length, so a
+     * handful of attempts is more than enough; exhausting them signals a real
+     * problem rather than bad luck.
+     */
+    private static final int MAX_CODE_ATTEMPTS = 5;
+
     private final UrlRepository repository;
     private final ClickAnalyticsService clickAnalytics;
+    private final ShortCodeGenerator shortCodeGenerator;
 
-    public UrlService(UrlRepository repository, ClickAnalyticsService clickAnalytics) {
+    public UrlService(UrlRepository repository, ClickAnalyticsService clickAnalytics,
+                      ShortCodeGenerator shortCodeGenerator) {
         this.repository = repository;
         this.clickAnalytics = clickAnalytics;
+        this.shortCodeGenerator = shortCodeGenerator;
     }
 
     /**
      * Creates a new short link.
      *
-     * <p>Without a custom alias the short code is derived from the persisted row
-     * id (see {@link UrlMapping#assignShortCode()}), so it is unique by
-     * construction. With a custom alias, availability is checked up front for a
-     * friendly 409, and the unique index backs it up against races.
+     * <p>Without a custom alias a random, unguessable short code is generated (see
+     * {@link ShortCodeGenerator}) and retried on the rare collision, so codes cannot
+     * be enumerated by walking sequential ids. With a custom alias, availability is
+     * checked up front for a friendly 409, and the unique index backs it up against
+     * races.
      */
     @Transactional
     public UrlMapping create(String originalUrl, String customAlias, Instant expiresAt) {
@@ -71,6 +83,8 @@ public class UrlService {
                 throw new AliasAlreadyExistsException(alias);
             }
             mapping.setShortCode(alias);
+        } else {
+            mapping.setShortCode(generateUniqueShortCode());
         }
 
         UrlMapping saved = repository.save(mapping);
@@ -84,6 +98,22 @@ public class UrlService {
         if (RESERVED_ALIASES.contains(alias.toLowerCase())) {
             throw new IllegalArgumentException("customAlias '" + alias + "' is reserved");
         }
+    }
+
+    /**
+     * Generates a random short code that is not already in use. The unique index
+     * is the ultimate guard against a concurrent race; this pre-check just keeps
+     * the common case clean and gives collisions a fresh code to retry with.
+     */
+    private String generateUniqueShortCode() {
+        for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
+            String code = shortCodeGenerator.generate();
+            if (!repository.existsByShortCode(code)) {
+                return code;
+            }
+        }
+        throw new IllegalStateException(
+                "could not generate a unique short code after " + MAX_CODE_ATTEMPTS + " attempts");
     }
 
     /**
@@ -120,7 +150,9 @@ public class UrlService {
                 outcomes.add(CreateOutcome.failed(url, "url must start with http:// or https:// and be ≤ 2048 chars"));
                 continue;
             }
-            UrlMapping saved = repository.save(new UrlMapping(trimmed, null));
+            UrlMapping mapping = new UrlMapping(trimmed, null);
+            mapping.setShortCode(generateUniqueShortCode());
+            UrlMapping saved = repository.save(mapping);
             outcomes.add(CreateOutcome.ok(url, saved));
         }
         return outcomes;

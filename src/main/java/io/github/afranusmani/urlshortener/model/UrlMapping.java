@@ -4,10 +4,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
-import io.github.afranusmani.urlshortener.service.Base62;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
@@ -16,8 +14,10 @@ import java.time.Instant;
 /**
  * Persistent mapping between a generated short code and its original long URL.
  *
- * <p>The numeric {@code id} is used as the seed for Base62 short-code generation,
- * guaranteeing globally unique, collision-free codes without extra lookups.
+ * <p>The short code is a random, unguessable token assigned by the service before
+ * persist (see {@code ShortCodeGenerator}); it is deliberately unrelated to the
+ * numeric {@code id} so links cannot be enumerated by walking sequential ids. The
+ * unique index on {@code short_code} enforces uniqueness.
  */
 @Entity
 @Table(
@@ -60,17 +60,6 @@ public class UrlMapping {
         this.createdAt = Instant.now();
         this.hitCount = 0L;
         this.expiresAt = expiresAt;
-    }
-
-    /**
-     * Derives the short code from the (already-assigned) sequence id at persist
-     * time, so the single INSERT carries a non-null {@code short_code}.
-     */
-    @PrePersist
-    public void assignShortCode() {
-        if (this.shortCode == null && this.id != null) {
-            this.shortCode = Base62.encode(this.id);
-        }
     }
 
     public void incrementHitCount() {
