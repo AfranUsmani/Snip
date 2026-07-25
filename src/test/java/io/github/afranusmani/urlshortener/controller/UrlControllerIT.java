@@ -1,7 +1,10 @@
 package io.github.afranusmani.urlshortener.controller;
 
 import io.github.afranusmani.urlshortener.dto.AnalyticsResponse;
+import io.github.afranusmani.urlshortener.dto.BulkCreateRequest;
+import io.github.afranusmani.urlshortener.dto.BulkCreateResponse;
 import io.github.afranusmani.urlshortener.dto.CreateUrlRequest;
+import io.github.afranusmani.urlshortener.dto.UpdateUrlRequest;
 import io.github.afranusmani.urlshortener.dto.UrlResponse;
 import io.github.afranusmani.urlshortener.exception.ApiError;
 import io.github.afranusmani.urlshortener.model.UrlMapping;
@@ -24,6 +27,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -228,5 +232,84 @@ class UrlControllerIT {
         ResponseEntity<ApiError> response =
                 rest.getForEntity("/api/v1/urls/nope" + System.nanoTime() + "/analytics", ApiError.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void editingDestinationTakesEffectImmediately() {
+        // Create pointing at the first target, then resolve it once to populate the cache.
+        ResponseEntity<UrlResponse> created = rest.postForEntity(
+                "/api/v1/urls", new CreateUrlRequest("https://one.example.com"), UrlResponse.class);
+        String code = created.getBody().shortCode();
+
+        ResponseEntity<Void> first = rest.getForEntity("/" + code, Void.class);
+        assertThat(first.getHeaders().getLocation()).isEqualTo(URI.create("https://one.example.com"));
+
+        // Edit the destination.
+        ResponseEntity<UrlResponse> updated = rest.exchange(
+                "/api/v1/urls/" + code, HttpMethod.PUT,
+                new HttpEntity<>(new UpdateUrlRequest("https://two.example.com", null)),
+                UrlResponse.class);
+        assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(updated.getBody().originalUrl()).isEqualTo("https://two.example.com");
+
+        // The redirect reflects the new target — proving the resolve cache was evicted.
+        ResponseEntity<Void> second = rest.getForEntity("/" + code, Void.class);
+        assertThat(second.getHeaders().getLocation()).isEqualTo(URI.create("https://two.example.com"));
+    }
+
+    @Test
+    void editingUnknownCodeReturnsNotFound() {
+        ResponseEntity<ApiError> response = rest.exchange(
+                "/api/v1/urls/missing" + System.nanoTime(), HttpMethod.PUT,
+                new HttpEntity<>(new UpdateUrlRequest("https://example.com", null)),
+                ApiError.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void bulkCreateReportsPerItemOutcomes() {
+        BulkCreateRequest request = new BulkCreateRequest(
+                List.of("https://a.example.com", "not-a-url", "https://b.example.com"));
+
+        ResponseEntity<BulkCreateResponse> response =
+                rest.postForEntity("/api/v1/urls/bulk", request, BulkCreateResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        BulkCreateResponse body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.created()).isEqualTo(2);
+        assertThat(body.failed()).isEqualTo(1);
+        assertThat(body.results()).hasSize(3);
+        assertThat(body.results().get(1).success()).isFalse();
+        assertThat(body.results().get(1).error()).isNotBlank();
+        // A successfully created bulk link resolves.
+        String code = body.results().get(0).shortCode();
+        assertThat(rest.getForEntity("/" + code, Void.class).getStatusCode()).isEqualTo(HttpStatus.FOUND);
+    }
+
+    @Test
+    void previewShowsDestinationWithoutRedirecting() {
+        ResponseEntity<UrlResponse> created = rest.postForEntity(
+                "/api/v1/urls", new CreateUrlRequest("https://preview.example.com/page"), UrlResponse.class);
+        String code = created.getBody().shortCode();
+
+        ResponseEntity<String> preview = rest.getForEntity("/preview/" + code, String.class);
+
+        assertThat(preview.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(preview.getHeaders().getContentType().toString()).contains("text/html");
+        assertThat(preview.getBody())
+                .contains("https://preview.example.com/page")
+                .contains("Continue to site");
+        // Previewing must not count as a click.
+        ResponseEntity<UrlResponse> stats = rest.getForEntity("/api/v1/urls/" + code, UrlResponse.class);
+        assertThat(stats.getBody().hitCount()).isZero();
+    }
+
+    @Test
+    void previewOfUnknownCodeReturnsNotFoundHtml() {
+        ResponseEntity<String> response =
+                rest.getForEntity("/preview/missing" + System.nanoTime(), String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getHeaders().getContentType().toString()).contains("text/html");
     }
 }

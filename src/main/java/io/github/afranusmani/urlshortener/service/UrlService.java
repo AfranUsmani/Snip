@@ -7,12 +7,15 @@ import io.github.afranusmani.urlshortener.model.UrlMapping;
 import io.github.afranusmani.urlshortener.repository.UrlRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -34,8 +37,12 @@ public class UrlService {
     private static final Set<String> RESERVED_ALIASES = Set.of(
             "api", "actuator", "swagger-ui", "h2-console", "v3", "webjars",
             "error", "favicon", "index", "assets", "static", "qr", "analytics",
-            "robots", "sitemap", "login", "admin"
+            "robots", "sitemap", "login", "admin", "preview", "p", "bulk"
     );
+
+    /** Max URLs accepted in a single bulk request (mirrored by bean validation). */
+    private static final int BULK_LIMIT = 50;
+    private static final String URL_PATTERN = "^https?://.+";
 
     private final UrlRepository repository;
     private final ClickAnalyticsService clickAnalytics;
@@ -77,6 +84,46 @@ public class UrlService {
         if (RESERVED_ALIASES.contains(alias.toLowerCase())) {
             throw new IllegalArgumentException("customAlias '" + alias + "' is reserved");
         }
+    }
+
+    /**
+     * Edits an existing link's destination (and expiry). The short code is
+     * unchanged, so any printed/QR-encoded links keep working. Evicts the resolve
+     * cache for this code so the next redirect reflects the new target.
+     */
+    @CacheEvict(cacheNames = "urls", key = "#shortCode")
+    @Transactional
+    public UrlMapping update(String shortCode, String newUrl, Instant expiresAt) {
+        UrlMapping mapping = repository.findByShortCode(shortCode)
+                .orElseThrow(() -> new ShortCodeNotFoundException(shortCode));
+        mapping.setOriginalUrl(newUrl);
+        mapping.setExpiresAt(expiresAt);
+        UrlMapping saved = repository.save(mapping);
+        log.info("Updated short code '{}' -> '{}'", shortCode, newUrl);
+        return saved;
+    }
+
+    /**
+     * Shortens several URLs in one call. Each URL is validated and created
+     * independently, so one bad input reports an error instead of failing the
+     * whole batch.
+     */
+    @Transactional
+    public List<CreateOutcome> createBulk(List<String> urls) {
+        if (urls.size() > BULK_LIMIT) {
+            throw new IllegalArgumentException("at most " + BULK_LIMIT + " urls per request");
+        }
+        List<CreateOutcome> outcomes = new ArrayList<>(urls.size());
+        for (String url : urls) {
+            String trimmed = url == null ? "" : url.trim();
+            if (!trimmed.matches(URL_PATTERN) || trimmed.length() > 2048) {
+                outcomes.add(CreateOutcome.failed(url, "url must start with http:// or https:// and be ≤ 2048 chars"));
+                continue;
+            }
+            UrlMapping saved = repository.save(new UrlMapping(trimmed, null));
+            outcomes.add(CreateOutcome.ok(url, saved));
+        }
+        return outcomes;
     }
 
     /**
