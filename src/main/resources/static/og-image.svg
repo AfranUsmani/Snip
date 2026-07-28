@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Snip — a fast, open-source URL shortener">
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d5efc"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="82%" cy="-8%" r="60%">
+      <stop offset="0" stop-color="#6d5efc" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#6d5efc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="-8%" cy="12%" r="55%">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#0f1115"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+  <rect width="1200" height="630" fill="url(#glow2)"/>
+
+  <g transform="translate(96,150)">
+    <text font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="120">🔗</text>
+    <text x="150" y="98" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="128" font-weight="800" fill="url(#accent)">Snip</text>
+  </g>
+
+  <text x="96" y="360" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="52" font-weight="700" fill="#e7ebf3">Free URL shortener with QR codes</text>
+  <text x="96" y="426" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="52" font-weight="700" fill="#e7ebf3">&amp; real-time click analytics</text>
+
+  <text x="96" y="516" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="30" fill="#98a2b8">custom aliases · expiry · unguessable codes</text>
+
+  <rect x="96" y="548" width="470" height="2" fill="#2a3142"/>
+  <text x="96" y="596" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="28" fill="#6d5efc">Java 21 · Spring Boot 3 · Redis · Prometheus</text>
+
+  <text x="1104" y="596" text-anchor="end" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="26" fill="#98a2b8">github.com/AfranUsmani</text>
+</svg>
