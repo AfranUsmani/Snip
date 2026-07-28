@@ -9,4 +9,4 @@ Disallow: /swagger-ui
 Disallow: /swagger-ui.html
 Disallow: /v3/api-docs
 
-Sitemap: https://snip.onrender.com/sitemap.xml
+Sitemap: https://snip-5zcx.onrender.com/sitemap.xml

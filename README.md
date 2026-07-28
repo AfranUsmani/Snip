@@ -13,16 +13,16 @@ A production-grade URL shortener REST API built with **Java 21 + Spring Boot 3**
 
 ## 🌐 Live Demo
 
-- **Dashboard (start here):** https://snip.onrender.com/
-- **Swagger UI (for developers):** https://snip.onrender.com/swagger-ui.html
-- **API base:** `https://snip.onrender.com/api/v1/urls`
-- **Health:** https://snip.onrender.com/actuator/health
+- **Dashboard (start here):** https://snip-5zcx.onrender.com/
+- **Swagger UI (for developers):** https://snip-5zcx.onrender.com/swagger-ui.html
+- **API base:** `https://snip-5zcx.onrender.com/api/v1/urls`
+- **Health:** https://snip-5zcx.onrender.com/actuator/health
 
 The root URL now serves a lightweight **web dashboard** — anyone can shorten a link,
 click it, and watch the click count update live, without touching Swagger or curl.
 
 ```bash
-curl -X POST https://snip.onrender.com/api/v1/urls \
+curl -X POST https://snip-5zcx.onrender.com/api/v1/urls \
   -H "Content-Type: application/json" \
   -d '{"url":"https://spring.io/projects/spring-boot"}'
 ```
@@ -55,7 +55,7 @@ no separate frontend deployment.
 
 ## 📸 Screenshots
 
-The dashboard lives at [`/`](https://snip.onrender.com/); interactive API docs live at [`/swagger-ui.html`](https://snip.onrender.com/swagger-ui.html).
+The dashboard lives at [`/`](https://snip-5zcx.onrender.com/); interactive API docs live at [`/swagger-ui.html`](https://snip-5zcx.onrender.com/swagger-ui.html).
 
 <!-- Generate these two assets with the guide in docs/README.md, then uncomment:
 ![Swagger UI](docs/swagger.png)
