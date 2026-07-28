@@ -1,6 +1,6 @@
 # URL Shortener API
 
-[![CI](https://github.com/AfranUsmani/url-shortener-api/actions/workflows/ci.yml/badge.svg)](https://github.com/AfranUsmani/url-shortener-api/actions/workflows/ci.yml)
+[![CI](https://github.com/AfranUsmani/Snip/actions/workflows/ci.yml/badge.svg)](https://github.com/AfranUsmani/Snip/actions/workflows/ci.yml)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?logo=springboot&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
