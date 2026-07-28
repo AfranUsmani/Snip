@@ -2,7 +2,7 @@
 
 Short links are a deceptively simple problem — `POST` a long URL, get back a short code, follow the code, get redirected. But "make it work" and "make it hold up in production" are very different bars. I built a URL shortener as a compact showcase of how I approach backend services, and the interesting part wasn't the happy path — it was the two bugs that only surfaced when I actually ran the thing end to end.
 
-> **Code:** https://github.com/AfranUsmani/url-shortener-api
+> **Code:** https://github.com/AfranUsmani/Snip
 
 ## The design in one breath
 
