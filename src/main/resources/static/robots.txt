@@ -1,0 +1,12 @@
+# Snip — URL Shortener
+# Crawl the marketing homepage; keep the API, admin and preview surfaces out.
+User-agent: *
+Allow: /$
+Disallow: /api/
+Disallow: /actuator/
+Disallow: /preview/
+Disallow: /swagger-ui
+Disallow: /swagger-ui.html
+Disallow: /v3/api-docs
+
+Sitemap: https://url-shortener-api.onrender.com/sitemap.xml
