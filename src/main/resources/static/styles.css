@@ -276,6 +276,12 @@ button {
     display: flex; flex-direction: column; gap: 4px; text-align: center;
     color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border);
 }
+.footer .credit { color: var(--text); font-weight: 600; margin-bottom: 4px; }
+.footer .credit a {
+    color: var(--accent-2); text-decoration: none;
+    border-bottom: 1px solid transparent; transition: border-color 0.15s ease;
+}
+.footer .credit a:hover, .footer .credit a:focus-visible { border-bottom-color: var(--accent-2); }
 
 /* ---------- Modal (QR + analytics) ---------- */
 .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; }
