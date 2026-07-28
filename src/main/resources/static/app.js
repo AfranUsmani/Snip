@@ -540,6 +540,36 @@
         showToast("Cleared");
     });
 
+    // ---- Theme toggle ---------------------------------------------------------
+    // The inline head script already set data-theme before first paint; here we
+    // just sync the button + meta to it, and wire the toggle.
+    const themeToggle = $("theme-toggle");
+    const metaThemeColor = $("meta-theme-color");
+    const THEME_KEY = "snip.theme";
+    const THEME_BG = { dark: "#0f1115", light: "#f6f7fb" };
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute("data-theme", theme);
+        if (themeToggle) themeToggle.setAttribute("aria-checked", String(theme === "dark"));
+        if (metaThemeColor) metaThemeColor.setAttribute("content", THEME_BG[theme] || THEME_BG.dark);
+    }
+
+    applyTheme(document.documentElement.getAttribute("data-theme") || "dark");
+
+    if (themeToggle) {
+        themeToggle.addEventListener("click", () => {
+            const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+            applyTheme(next);
+            try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+        });
+    }
+
+    // Follow OS theme changes only until the user makes an explicit choice.
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+        try { if (localStorage.getItem(THEME_KEY)) return; } catch (_) {}
+        applyTheme(e.matches ? "light" : "dark");
+    });
+
     // ---- init -----------------------------------------------------------------
     aliasPrefix.textContent = location.host + "/";
     renderLinks();

@@ -14,8 +14,35 @@
     --warn: #fbbf24;
     --radius: 14px;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --topbar-bg: rgba(15, 17, 21, 0.72);
+    --clicks-text: #b9b2ff;
+    color-scheme: dark;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* ---------- Light theme ---------- */
+/* Explicit override set by the inline head script / toggle; wins over :root by
+   specificity. Tokens keep the purple→cyan brand; cyan is darkened (#0891b2) so
+   accent text meets WCAG AA on white, and status colors are darkened for AA. */
+[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f6f7fb;
+    --bg-soft: #eef0f6;
+    --card: #ffffff;
+    --card-hover: #f1f3f9;
+    --border: #d9dde8;
+    --text: #1a1f2b;
+    --muted: #5a6478;
+    --accent: #6d5efc;
+    --accent-2: #0891b2;
+    --accent-grad: linear-gradient(135deg, #6d5efc 0%, #0891b2 100%);
+    --good: #059669;
+    --bad: #dc2626;
+    --warn: #b45309;
+    --shadow: 0 10px 30px rgba(20, 24, 40, 0.12);
+    --topbar-bg: rgba(246, 247, 251, 0.72);
+    --clicks-text: #5b4bd6;
 }
 
 * { box-sizing: border-box; }
@@ -56,7 +83,7 @@ a:hover { text-decoration: underline; }
     border-bottom: 1px solid var(--border);
     backdrop-filter: blur(8px);
     position: sticky; top: 0; z-index: 20;
-    background: rgba(15, 17, 21, 0.72);
+    background: var(--topbar-bg);
 }
 
 .brand { display: flex; align-items: center; gap: 12px; }
@@ -79,6 +106,21 @@ a:hover { text-decoration: underline; }
 .pill-down .dot { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
 .pill-down { color: var(--bad); border-color: rgba(248, 113, 113, 0.35); }
 .pill-unknown { color: var(--muted); }
+
+.theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; padding: 0;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); color: var(--text);
+    cursor: pointer; font-size: 15px; line-height: 1;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.theme-toggle:hover { background: var(--card-hover); border-color: var(--accent); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Show only the icon for the theme you'd switch TO. */
+.theme-icon { display: none; }
+[data-theme="dark"] .theme-icon-sun { display: inline; }
+[data-theme="light"] .theme-icon-moon { display: inline; }
 
 /* ---------- Layout ---------- */
 .container { max-width: 900px; margin: 0 auto; padding: 44px 24px 80px; }
@@ -253,7 +295,7 @@ button {
 
 .clicks-badge {
     display: inline-block; min-width: 30px; text-align: center;
-    background: rgba(109, 94, 252, 0.15); color: #b9b2ff;
+    background: rgba(109, 94, 252, 0.15); color: var(--clicks-text);
     border: 1px solid rgba(109, 94, 252, 0.3);
     padding: 3px 10px; border-radius: 999px; font-family: var(--mono); font-weight: 600;
 }
