@@ -3,10 +3,10 @@
 # No database/Redis needed: the default profile uses in-memory H2 + cache.
 services:
   - type: web
-    # Must match the existing Render service so a Blueprint apply updates it in
-    # place. *.onrender.com subdomains are globally unique; this one resolves to
-    # https://url-shortener-api-1716.onrender.com
-    name: url-shortener-api-1716
+    # Service name — also the *.onrender.com subdomain. These subdomains are
+    # globally unique, so if "snip" is already taken Render appends a suffix
+    # (e.g. snip-xxxx.onrender.com); use the exact host Render assigns.
+    name: snip
     runtime: docker
     plan: free
     region: singapore            # closest Render region to India; change if you prefer
