@@ -15,6 +15,9 @@ public interface UrlRepository extends JpaRepository<UrlMapping, Long> {
     /** Used to reject a custom alias before insert with a friendly 409. */
     boolean existsByShortCode(String shortCode);
 
+    /** Removes a link by its short code (used by the delete endpoint). */
+    long deleteByShortCode(String shortCode);
+
     /**
      * Atomically increments the hit counter in a single statement, avoiding a
      * read-modify-write race on the hot redirect path.

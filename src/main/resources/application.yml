@@ -27,7 +27,9 @@ spring:
     type: simple
   h2:
     console:
-      enabled: true
+      # Never expose the H2 web console on a public instance (it can read files
+      # and run scripts). Off by default; enable locally only if you need it.
+      enabled: false
   web:
     resources:
       cache:
@@ -43,6 +45,15 @@ app:
   # short URLs are correct on localhost, Render, or any custom domain with no
   # config. Set it only to force a specific host (e.g. a branded domain).
   base-url: ${APP_BASE_URL:}
+  safe-browsing:
+    # Optional. Set SAFE_BROWSING_API_KEY to screen destinations against Google
+    # Safe Browsing (free for non-commercial use). Unset = screening disabled.
+    api-key: ${SAFE_BROWSING_API_KEY:}
+  rate-limit:
+    # Per-IP token bucket on the write + QR endpoints (redirects are never
+    # limited), so a public no-auth instance can't be scripted for abuse.
+    capacity: ${RATE_LIMIT_CAPACITY:30}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
 
 server:
   # Cloud platforms (Render, Cloud Run, Koyeb, ...) inject the port via $PORT.
@@ -64,10 +75,15 @@ management:
         include: health, info, metrics, prometheus
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
   health:
     redis:
       enabled: false   # no Redis in the default profile
+
+logging:
+  pattern:
+    # Prepend the per-request correlation id (set by RequestIdFilter) to each log line.
+    level: "%5p [%X{requestId:-}]"
 
 springdoc:
   swagger-ui:
@@ -83,7 +99,9 @@ spring:
     activate:
       on-profile: docker
   datasource:
-    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:urlshortener}
+    # DB_PARAMS appends connection options, e.g. ?sslmode=require for a hosted
+    # Postgres such as Neon or Supabase (durable free storage that survives restarts).
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:urlshortener}${DB_PARAMS:}
     driver-class-name: org.postgresql.Driver
     username: ${DB_USER:urlshortener}
     password: ${DB_PASSWORD:urlshortener}

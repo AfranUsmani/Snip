@@ -5,6 +5,7 @@ import io.github.afranusmani.urlshortener.exception.ShortCodeNotFoundException;
 import io.github.afranusmani.urlshortener.model.UrlMapping;
 import io.github.afranusmani.urlshortener.repository.UrlRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.web.client.RestClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,7 +35,8 @@ class UrlServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new UrlService(repository, clickAnalytics, new ShortCodeGenerator());
+        service = new UrlService(repository, clickAnalytics, new ShortCodeGenerator(),
+                new UrlSafety(new UrlSafetyValidator(), new SafeBrowsingService("", RestClient.builder())));
     }
 
     @Test

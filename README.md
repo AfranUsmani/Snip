@@ -74,7 +74,13 @@ The dashboard lives at [`/`](https://snip-5zcx.onrender.com/); interactive API d
 - **Async click analytics** — every redirect is captured off the hot path (referrer host, device, browser, daily time series) and exposed via `/api/v1/urls/{code}/analytics`; the redirect itself only does an atomic counter bump.
 - **Cache-aside reads**: hot short codes are served from cache (Redis in prod, in-memory locally), so redirects don't hit the database on every request.
 - **Atomic hit counting** through a single `UPDATE` statement — no read-modify-write race.
-- **Consistent error contract** — every failure returns the same JSON `ApiError` shape.
+- **Consistent error contract** — every failure returns the same JSON `ApiError` shape, including a catch-all so unexpected errors never leak a stack trace.
+- **Safe-by-default public redirector** — scheme allowlist (blocks `javascript:` / `data:` / `file:`) plus a private / loopback / link-local blocklist so links can't bounce visitors onto internal addresses, and optional **Google Safe Browsing** screening of destinations.
+- **Per-IP rate limiting** (token bucket) on the write + QR endpoints so a public, no-auth instance can't be scripted for spam or redirect-laundering — redirects themselves stay unthrottled.
+- **Link deletion** — `DELETE /api/v1/urls/{code}` stops a code resolving and evicts it from cache.
+- **Idempotent create** — an `Idempotency-Key` header makes a retried create return the original link instead of a duplicate.
+- **Security headers** (CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`) and per-request **correlation ids** (`X-Request-Id`, surfaced in logs).
+- **Installable PWA** — a service worker caches the app shell for instant loads and a graceful cold-start experience on the free tier.
 - **Observability out of the box** — Spring Boot Actuator health checks + a `/actuator/prometheus` scrape endpoint (Micrometer).
 - **Web dashboard** served at `/` — shorten links (with alias/expiry), show QR codes, and explore click analytics without touching Swagger or curl.
 - **Interactive API docs** via Swagger UI (springdoc-openapi).
@@ -232,6 +238,38 @@ curl http://localhost:8080/api/v1/urls/spring/analytics                # JSON br
 
 ---
 
+## 🔒 Security &amp; operations
+
+A public, no-auth shortener is a tempting abuse target, so the defaults are safe:
+scheme + private-address validation on every destination, per-IP rate limiting,
+security headers, and the H2 console disabled. Optional hardening and durable
+storage are configured via environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SAFE_BROWSING_API_KEY` | _(unset)_ | Enable Google Safe Browsing screening of destinations (free for non-commercial use). Unset = screening off, fails open. |
+| `RATE_LIMIT_CAPACITY` | `30` | Tokens per window per IP on the write + QR endpoints. |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Length of the rate-limit window. |
+| `APP_BASE_URL` | _(request-derived)_ | Force a specific public host for generated links. |
+
+**Durable data on a free tier.** The default profile uses in-memory H2, which
+resets on restart — fine for a throwaway demo, but links vanish when the
+instance sleeps. To persist across restarts, point the `docker` profile at a
+free hosted Postgres such as [Neon](https://neon.tech) (the Postgres path
+already exists) by setting:
+
+```
+SPRING_PROFILES_ACTIVE=docker
+DB_HOST=<neon-host>  DB_PORT=5432  DB_NAME=<db>  DB_USER=<user>  DB_PASSWORD=<pw>
+DB_PARAMS=?sslmode=require
+```
+
+> **On API-key auth:** the write endpoints are intentionally left open so the
+> public dashboard works for anyone. Mandatory API keys would gate the demo's
+> main attraction, so abuse is handled with rate limiting + URL screening instead.
+
+---
+
 ## 🧪 Testing
 
 ```bash
@@ -240,7 +278,8 @@ mvn verify
 
 Runs the unit tests (`ShortCodeGeneratorTest`, `UserAgentsTest`, `UrlServiceTest`, `UrlMappingTest`) and
 the full-context integration tests (`UrlControllerIT`) against H2 — covering create → redirect →
-stats, custom aliases (409), expiry (410), the QR endpoint, and async analytics.
+stats, custom aliases (409), expiry (410), the QR endpoint, async analytics, link deletion (with
+cache eviction), and rejection of unsafe private-address targets.
 
 ---
 
@@ -254,7 +293,7 @@ src/main/java/io/github/afranusmani/urlshortener
 ├── model        # JPA entities (UrlMapping, ClickEvent)
 ├── dto          # request/response records (incl. AnalyticsResponse)
 ├── exception    # global handler + error contract (404 / 409 / 410 / 400)
-└── config       # OpenAPI + async executor configuration
+└── config       # OpenAPI, async executor, and servlet filters (security headers, rate limit, request id)
 
 src/main/resources/static   # web dashboard (index.html · styles.css · app.js)
 ```
@@ -267,8 +306,9 @@ src/main/resources/static   # web dashboard (index.html · styles.css · app.js)
 - [x] Link expiration (TTL) — 410 Gone on expired links
 - [x] QR codes per short link
 - [x] Click analytics (device / browser / referrer / daily), captured asynchronously
-- [ ] Soft deletion of links
-- [ ] Per-client rate limiting (Bucket4j)
+- [x] Link deletion (`DELETE` endpoint) with cache eviction
+- [x] Per-IP rate limiting (in-memory token bucket)
+- [x] URL safety validation (scheme + private-address blocklist) and optional Safe Browsing screening
 - [ ] Geo/IP enrichment for analytics (currently privacy-friendly: no IP stored)
 - [ ] Testcontainers-based integration tests against real Postgres + Redis
 
