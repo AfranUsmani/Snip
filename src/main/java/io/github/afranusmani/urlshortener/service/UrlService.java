@@ -3,6 +3,7 @@ package io.github.afranusmani.urlshortener.service;
 import io.github.afranusmani.urlshortener.dto.AnalyticsResponse;
 import io.github.afranusmani.urlshortener.exception.AliasAlreadyExistsException;
 import io.github.afranusmani.urlshortener.exception.ShortCodeNotFoundException;
+import io.github.afranusmani.urlshortener.exception.UnsafeUrlException;
 import io.github.afranusmani.urlshortener.model.UrlMapping;
 import io.github.afranusmani.urlshortener.repository.UrlRepository;
 import org.slf4j.Logger;
@@ -55,12 +56,14 @@ public class UrlService {
     private final UrlRepository repository;
     private final ClickAnalyticsService clickAnalytics;
     private final ShortCodeGenerator shortCodeGenerator;
+    private final UrlSafety urlSafety;
 
     public UrlService(UrlRepository repository, ClickAnalyticsService clickAnalytics,
-                      ShortCodeGenerator shortCodeGenerator) {
+                      ShortCodeGenerator shortCodeGenerator, UrlSafety urlSafety) {
         this.repository = repository;
         this.clickAnalytics = clickAnalytics;
         this.shortCodeGenerator = shortCodeGenerator;
+        this.urlSafety = urlSafety;
     }
 
     /**
@@ -74,6 +77,7 @@ public class UrlService {
      */
     @Transactional
     public UrlMapping create(String originalUrl, String customAlias, Instant expiresAt) {
+        urlSafety.check(originalUrl);
         UrlMapping mapping = new UrlMapping(originalUrl, expiresAt);
 
         if (StringUtils.hasText(customAlias)) {
@@ -124,6 +128,7 @@ public class UrlService {
     @CacheEvict(cacheNames = "urls", key = "#shortCode")
     @Transactional
     public UrlMapping update(String shortCode, String newUrl, Instant expiresAt) {
+        urlSafety.check(newUrl);
         UrlMapping mapping = repository.findByShortCode(shortCode)
                 .orElseThrow(() -> new ShortCodeNotFoundException(shortCode));
         mapping.setOriginalUrl(newUrl);
@@ -131,6 +136,21 @@ public class UrlService {
         UrlMapping saved = repository.save(mapping);
         log.info("Updated short code '{}' -> '{}'", shortCode, newUrl);
         return saved;
+    }
+
+    /**
+     * Deletes a link so its code stops resolving. Evicts the resolve cache for
+     * the code. Click-analytics rows for the code are left as harmless orphans
+     * (unreachable once the mapping is gone, and reset with the DB).
+     */
+    @CacheEvict(cacheNames = "urls", key = "#shortCode")
+    @Transactional
+    public void delete(String shortCode) {
+        if (!repository.existsByShortCode(shortCode)) {
+            throw new ShortCodeNotFoundException(shortCode);
+        }
+        repository.deleteByShortCode(shortCode);
+        log.info("Deleted short code '{}'", shortCode);
     }
 
     /**
@@ -148,6 +168,12 @@ public class UrlService {
             String trimmed = url == null ? "" : url.trim();
             if (!trimmed.matches(URL_PATTERN) || trimmed.length() > 2048) {
                 outcomes.add(CreateOutcome.failed(url, "url must start with http:// or https:// and be ≤ 2048 chars"));
+                continue;
+            }
+            try {
+                urlSafety.check(trimmed);
+            } catch (UnsafeUrlException e) {
+                outcomes.add(CreateOutcome.failed(url, e.getMessage()));
                 continue;
             }
             UrlMapping mapping = new UrlMapping(trimmed, null);

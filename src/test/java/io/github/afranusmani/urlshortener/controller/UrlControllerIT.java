@@ -22,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.test.context.TestPropertySource;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -40,6 +41,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureObservability  // enable metrics export (disabled by default in tests) so /actuator/prometheus is served
+@TestPropertySource(properties = "app.rate-limit.capacity=100000")  // don't throttle the test suite
 class UrlControllerIT {
 
     @Autowired
@@ -313,5 +315,32 @@ class UrlControllerIT {
                 rest.getForEntity("/preview/missing" + System.nanoTime(), String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getHeaders().getContentType().toString()).contains("text/html");
+    }
+
+    @Test
+    void rejectsPrivateAddressTarget() {
+        // A public shortener must not be usable to bounce visitors onto internal
+        // addresses (here, the cloud metadata endpoint).
+        ResponseEntity<ApiError> response = rest.postForEntity(
+                "/api/v1/urls",
+                new CreateUrlRequest("http://169.254.169.254/latest/meta-data/"),
+                ApiError.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void deletedLinkStopsResolving() {
+        ResponseEntity<UrlResponse> created = rest.postForEntity(
+                "/api/v1/urls", new CreateUrlRequest("https://delete.example.com"), UrlResponse.class);
+        String code = created.getBody().shortCode();
+        // Resolve once so the code is cached — delete must also evict it.
+        assertThat(rest.getForEntity("/" + code, Void.class).getStatusCode()).isEqualTo(HttpStatus.FOUND);
+
+        ResponseEntity<Void> deleted = rest.exchange(
+                "/api/v1/urls/" + code, HttpMethod.DELETE, null, Void.class);
+        assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        ResponseEntity<ApiError> afterDelete = rest.getForEntity("/" + code, ApiError.class);
+        assertThat(afterDelete.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

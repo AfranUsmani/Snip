@@ -521,10 +521,16 @@
         } else if (act === "edit") {
             showEditModal(link);
         } else if (act === "remove") {
+            try {
+                // 204 = deleted server-side; 404 = already gone. Either way, drop it locally.
+                await fetch(`${API}/${encodeURIComponent(code)}`, { method: "DELETE" });
+            } catch (_) {
+                // Network/offline — still remove from this browser's list.
+            }
             links = links.filter((l) => l.shortCode !== code);
             saveLinks(links);
             renderLinks();
-            showToast("Removed from list");
+            showToast("Deleted");
         }
     });
 
@@ -576,4 +582,11 @@
     pollHealth();
     setInterval(pollHealth, 20000);
     if (links.length > 0) refreshAll();
+
+    // Register the service worker (offline app shell + snappier cold starts).
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+    }
 })();

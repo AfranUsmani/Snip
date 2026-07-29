@@ -1,9 +1,12 @@
 package io.github.afranusmani.urlshortener.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -17,6 +20,8 @@ import java.util.List;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ShortCodeNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ShortCodeNotFoundException ex,
@@ -60,6 +65,28 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex,
                                                           HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, List.of(ex.getMessage()), request);
+    }
+
+    @ExceptionHandler(UnsafeUrlException.class)
+    public ResponseEntity<ApiError> handleUnsafeUrl(UnsafeUrlException ex,
+                                                    HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, List.of(ex.getMessage()), request);
+    }
+
+    /**
+     * Backstop so clients always receive the {@link ApiError} shape. Framework
+     * exceptions that already carry an HTTP status (e.g. an unknown route's 404)
+     * keep that status; anything genuinely unexpected is logged and returned as a
+     * 500 rather than leaking a stack trace via the default error page.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest request) {
+        if (ex instanceof ErrorResponse errorResponse) {
+            HttpStatus status = HttpStatus.valueOf(errorResponse.getStatusCode().value());
+            return build(status, List.of(status.getReasonPhrase()), request);
+        }
+        log.error("Unhandled exception for {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, List.of("Something went wrong"), request);
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status,

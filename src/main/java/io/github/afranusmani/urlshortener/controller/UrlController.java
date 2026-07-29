@@ -8,6 +8,7 @@ import io.github.afranusmani.urlshortener.dto.UpdateUrlRequest;
 import io.github.afranusmani.urlshortener.dto.UrlResponse;
 import io.github.afranusmani.urlshortener.model.UrlMapping;
 import io.github.afranusmani.urlshortener.service.CreateOutcome;
+import io.github.afranusmani.urlshortener.service.IdempotencyStore;
 import io.github.afranusmani.urlshortener.service.QrCodeService;
 import io.github.afranusmani.urlshortener.service.UrlService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,11 +18,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,12 +42,15 @@ public class UrlController {
 
     private final UrlService service;
     private final QrCodeService qrCodeService;
+    private final IdempotencyStore idempotency;
     private final String configuredBaseUrl;
 
     public UrlController(UrlService service, QrCodeService qrCodeService,
+                         IdempotencyStore idempotency,
                          @Value("${app.base-url:}") String configuredBaseUrl) {
         this.service = service;
         this.qrCodeService = qrCodeService;
+        this.idempotency = idempotency;
         this.configuredBaseUrl = configuredBaseUrl;
     }
 
@@ -63,9 +69,26 @@ public class UrlController {
 
     @PostMapping
     @Operation(summary = "Create a short link for a given URL (optional custom alias and expiry)")
-    public ResponseEntity<UrlResponse> create(@Valid @RequestBody CreateUrlRequest request) {
-        UrlMapping mapping = service.create(request.url(), request.customAlias(), request.expiresAt());
+    public ResponseEntity<UrlResponse> create(
+            @Valid @RequestBody CreateUrlRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         String baseUrl = baseUrl();
+        boolean hasKey = idempotencyKey != null && !idempotencyKey.isBlank();
+
+        // Idempotency: a retry with the same key returns the original link
+        // instead of creating a duplicate.
+        if (hasKey) {
+            String existingCode = idempotency.get(idempotencyKey);
+            if (existingCode != null) {
+                UrlMapping existing = service.getMapping(existingCode);
+                return ResponseEntity.ok(UrlResponse.from(existing, baseUrl));
+            }
+        }
+
+        UrlMapping mapping = service.create(request.url(), request.customAlias(), request.expiresAt());
+        if (hasKey) {
+            idempotency.put(idempotencyKey, mapping.getShortCode());
+        }
         UrlResponse body = UrlResponse.from(mapping, baseUrl);
         URI location = UriComponentsBuilder.fromUriString(baseUrl)
                 .path("/api/v1/urls/{code}")
@@ -102,6 +125,13 @@ public class UrlController {
                                               @Valid @RequestBody UpdateUrlRequest request) {
         UrlMapping mapping = service.update(shortCode, request.url(), request.expiresAt());
         return ResponseEntity.ok(UrlResponse.from(mapping, baseUrl()));
+    }
+
+    @DeleteMapping("/{shortCode}")
+    @Operation(summary = "Delete a short link so its code stops resolving")
+    public ResponseEntity<Void> delete(@PathVariable String shortCode) {
+        service.delete(shortCode);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping(value = "/{shortCode}/qr", produces = MediaType.IMAGE_PNG_VALUE)
